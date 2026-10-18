@@ -13,6 +13,7 @@ import { stopService } from './service-lifecycle.mjs'
 import { installCliRuntime, migrateCliHome } from './cli-runtime.mjs'
 import { extractDshVersion, assertCompatibleDshVersion, dshCompatibilityNotice } from './dsh-compatibility.mjs'
 import { patchThemeFontLimit } from './theme-font-limit.mjs'
+import { patchChatAnswerStep } from './chat-answer-step-patch.mjs'
 import { installPluginDependencies, resolveHostDependencies } from './plugin-dependencies.mjs'
 import { isAsarPath } from './desktop-host-paths.mjs'
 import { migrateLegacyTavernData, resolveTavernDataRoot } from '../tavern-plugin/lib/domain/tavern-data.js'
@@ -333,6 +334,14 @@ async function installProfileOwned(host, { attemptId, runInstall, runDsh }) {
         const patched = patchThemeFontLimit(theme.directory)
         if (patched === null) console.log('当前 DSH 的字号设置与补丁不符，已跳过；界面字号仍以宿主上限为准。')
         else if (patched) console.log('已将 DSH 原有字号上限放宽到 32px。')
+      }
+      const [chat] = resolveHostDependencies({ dsh, host, requiredExports: { '@deepseek-ai/dsh-client-ui-chat': null } })
+      // 同字号补丁：桌面版宿主包在 app.asar 内只读，跳过并说明，不让整个安装回滚。
+      if (isAsarPath(chat.directory)) console.log('桌面版的 dsh-client-ui-chat 在 app.asar 内（只读归档），回复步骤补丁跳过；结算后整理过正文的回合在「简洁」模式下可能被折叠，可改用「完全展开」。')
+      else {
+        const patched = patchChatAnswerStep(chat.directory)
+        if (patched === null) console.log('当前 DSH 的对话界面与回复步骤补丁不符，已跳过。')
+        else if (patched) console.log('已修正 DSH 对话界面：结算后整理过正文的回合不再被当作过程折叠。')
       }
       if (bridge) {
         await runInstall('node', [path.join(SOURCE_ROOT, 'bin', 'validate-desktop-profile.mjs'), bridge.desktopStage], { label: '验证原版 Desktop 切换入口', timeoutMs: 60_000 })

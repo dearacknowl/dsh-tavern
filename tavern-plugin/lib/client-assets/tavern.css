@@ -2955,3 +2955,9 @@ details.dsh-tavern-recall-guide > summary .dsh-tavern-recall-guide-heading > spa
 .dsh-tavern-preset-hub-export label small { margin-left: auto; color: var(--dsw-alias-label-tertiary); font-size: 12px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .dsh-tavern-preset-hub-export input { width: 15px; height: 15px; margin: 0; accent-color: var(--dsh-tavern-accent); }
 .dsh-tavern-preset-hub-export-actions { display: flex; justify-content: flex-end; gap: 8px; margin-top: 4px; }
+
+/* DSH 0.2.1 把一轮里结算后写回正文的那一步也画进「过程」分组；酒馆正文已经在回复区显示，过程里的副本隐藏，避免「完全展开」时同一段正文出现两次。 */
+[data-step-process-body] .dsh-tavern-assistant,
+[data-step-process-content] .dsh-tavern-assistant {
+  display: none !important;
+}
