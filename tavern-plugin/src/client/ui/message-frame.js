@@ -148,9 +148,19 @@
                 }
             }, React.createElement(FullscreenIcon, { on: on }));
         }
+		// The first click both activates the panel and expands it; the iframe only
+		// mounts after React commits that state, so wait briefly for it to appear.
+		async function waitForTavernFrame(root, timeout = 3000) {
+            const start = Date.now();
+            for (;;) {
+                const frame = root?.querySelector('iframe:not([aria-hidden="true"])');
+                if (frame || !root || Date.now() - start > timeout) return frame || null;
+                await new Promise(resolve => requestAnimationFrame(() => resolve()));
+            }
+        }
 		async function expandTavernFrame(root) {
-            const frame = root?.querySelector('iframe:not([aria-hidden="true"])');
             try {
+                const frame = await waitForTavernFrame(root);
                 if (!frame) throw new Error("面板尚未加载，请稍后重试。");
                 // Fullscreen the page, not the iframe: a fullscreened iframe hides every
                 // host control, leaving only Esc to get out. The frame fills the page instead.
