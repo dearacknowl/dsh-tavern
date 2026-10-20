@@ -13157,8 +13157,8 @@ function bindTavernFontZoom(node, win) {
                 // Fullscreen the page, not the iframe: a fullscreened iframe hides every
                 // host control, leaving only Esc to get out. The frame fills the page instead.
                 openTavernPageFullscreen(frame);
-                const root = frame.ownerDocument.documentElement;
-                try { if (typeof root.requestFullscreen === "function") await root.requestFullscreen(); }
+                const pageRoot = frame.ownerDocument.documentElement;
+                try { if (typeof pageRoot.requestFullscreen === "function") await pageRoot.requestFullscreen(); }
                 catch (_) { /* Embedded hosts may deny native fullscreen; the page overlay remains. */ }
             } catch (error) { tavernErrorHub.report("展开大屏", error); }
         }
