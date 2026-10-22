@@ -208,7 +208,7 @@ export function parsePlannerDecision(text) {
 
 /** 人物库 → 给规划模型的"可用角色"清单（按可见块列，模型好照抄）。 */
 const ROSTER_TRAITS = [
-  ['feature', '角色特征'],
+  ['feature', '性格气质（据此挑这一刻的表情、神态和动作，不要原样抄进提示词）'],
   ['face', '五官（正面）'],
   ['faceBack', '五官（背面）'],
   ['bodySFW', '上半身SFW'],

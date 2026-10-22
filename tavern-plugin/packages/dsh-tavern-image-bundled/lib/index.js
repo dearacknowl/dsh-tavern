@@ -173,7 +173,7 @@ const DEFAULT_OFF_FIELDS = new Set(['continuity'])
  * 分别写。镜头切到哪一块就带哪一块，避免把全身细节全塞进一张近景。
  */
 const CHARACTER_TRAITS = [
-  ['feature', '角色特征'],
+  ['feature', '性格气质'],
   ['face', '五官外貌'],
   ['faceBack', '五官外貌背面'],
   ['bodySFW', '上半身SFW'],
@@ -473,7 +473,9 @@ function characterTags(character, options = {}) {
   const back = options.back === true
   const nsfw = options.nsfw === true || options.mode === 'all'
   const full = options.full !== false
-  const keys = ['feature', back ? 'faceBack' : 'face']
+  // 「性格气质」(feature) 只给规划挑表情动作，不写进画图提示词：它每张都会带上，
+  // 会把这一刻的神态压成同一种（泡澡放松的画面也带着 fierce）。
+  const keys = [back ? 'faceBack' : 'face']
   // 宏里分别给了上下身状态时按部位挑：上身露、下身穿着，就只带上身的 NSFW 块，反之亦然；hidden 的部位不带。
   // 没分别给（或 traitMode 为 all）时和以前一样，整个人一起按 nsfw / sfw 挑。
   const part = value => { const v = String(value ?? '').toLowerCase(); return v === 'nsfw' || v === 'hidden' || v === 'sfw' ? v : '' }
