@@ -413,17 +413,39 @@ export function normalizePrompts(text, definitions, context = {}) {
   return context?.style === 'natural' ? out : dedupeTags(out)
 }
 
-/** 同一个 tag 只留第一次出现（大小写不敏感）。 */
+/** 去掉权重写法后的 tag 本体：((high ponytail)) / (high ponytail:1.2) / {x} / [x] → high ponytail。 */
+function tagBody(tag) {
+  return String(tag ?? '').trim()
+    .replace(/^-?\d+(?:\.\d+)?::(.+?)::$/, '$1')
+    .replace(/:\s*-?\d+(?:\.\d+)?\s*(?=[)\]}]*$)/, '')
+    .replace(/^[(\[{]+|[)\]}]+$/g, '')
+    .trim().toLowerCase()
+}
+
+// 这些 tag 自成一类（人数、视角、尺度），哪怕更长的 tag 里含着同样的词也要保留。
+const STANDALONE_TAGS = new Set(['pov', 'solo', 'nude', 'nsfw', 'sfw', 'couple', 'hetero', 'yuri', 'multiple girls', 'multiple boys'])
+const tagWords = body => body.split(/[\s_]+/).filter(Boolean).map(w => w === 'clothes' ? 'cloth' : (w.length > 3 && w.endsWith('s') && !w.endsWith('ss') ? w.slice(0, -1) : w))
+
+/**
+ * 同一个 tag 只留第一次出现（大小写、权重写法都不算区别：((x)) 和 x 是同一个）。
+ * 后面的 tag 如果完全被前面某个更具体的 tag 覆盖（leather boots ← black leather boots、
+ * dark blue clothes ← dark blue cloth），也去掉：人物库展开的服装和规划自己补写的衣服常这样重复，
+ * 白占提示词长度，颜色写法不同时还会互相打架。
+ */
 export function dedupeTags(text) {
   const seen = new Set()
   const kept = []
+  const keptWords = []
   for (const part of String(text ?? '').split(',')) {
     const tag = part.trim()
     if (!tag) continue
-    const key = tag.toLowerCase()
-    if (seen.has(key)) continue
-    seen.add(key)
+    const body = tagBody(tag) || tag.toLowerCase()
+    if (seen.has(body)) continue
+    const words = tagWords(body)
+    if (!STANDALONE_TAGS.has(body) && words.length && keptWords.some(prev => prev.length >= words.length && words.every(w => prev.includes(w)))) continue
+    seen.add(body)
     kept.push(tag)
+    keptWords.push(words)
   }
   return kept.join(', ')
 }

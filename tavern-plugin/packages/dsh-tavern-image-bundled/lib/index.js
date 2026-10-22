@@ -291,6 +291,8 @@ export function expandRosterCalls(text, scoped, mode, options = {}) {
         const pushOutfit = (outfit) => {
           for (const field of ['upper', 'lower', 'shoes', 'accessory', 'full', 'back']) {
             if (barefoot && field === 'shoes') continue
+            // 「整体印象」(full) 是给自然语言模型的一句概括；tag 写法里已有上衣下装时它只是噪音。
+            if (field === 'full' && !natural && (String(outfit.upper ?? '').trim() || String(outfit.lower ?? '').trim())) continue
             if (field === 'back' && !(backView || lastBack)) continue
             const value = barefoot ? dropFootwear(outfit[field]) : String(outfit[field] ?? '').trim()
             if (value && !PLACEHOLDER_VALUE.test(value)) bits.push(value)
@@ -356,6 +358,7 @@ export function expandRosterCalls(text, scoped, mode, options = {}) {
             barefoot,
             outfitName: outfitName || undefined,
             noOutfit: Boolean(wear) || ownsStandalone || (!libraryHit && autoOff),
+            tags: !natural,
           })
           const angleTag = angle && /front|back|side|behind|left|right|from/i.test(angle) ? angle : ''
           if (natural) bits.push(boundCharacterPhrase(person, picked, angleTag ? [angleTag] : [], wear))
@@ -499,6 +502,7 @@ function characterTags(character, options = {}) {
     else if (!isDefault && (character.outfits ?? []).some(o => o.default && o.enabled !== false)) continue
     for (const key of ['upper', 'lower', 'shoes', 'accessory', 'full']) {
       if (options.barefoot && key === 'shoes') continue
+      if (key === 'full' && options.tags && (String(outfit.upper ?? '').trim() || String(outfit.lower ?? '').trim())) continue
       const value = options.barefoot ? dropFootwear(outfit[key]) : String(outfit[key] ?? '').trim()
       if (value && !PLACEHOLDER_VALUE.test(value)) { tags.push(value); origins.push({ field: 'outfit.' + key, outfitId: outfit.id, text: value }) }
     }
@@ -1295,7 +1299,7 @@ function createRuntime(ctx, overrides, logger, deps) {
                 blankRetry.delete(job.id)
                 job.state = 'failed'
                 job.requestMayHaveSucceeded = false
-                job.error = 'ComfyUI 连续返回全黑图片（多半是 bf16 / fp16 精度溢出）；可以再点重画换个种子。如果经常出现，先重启 ComfyUI；不要在 bf16 模型已加载时切到 fp32 工作流（部分显卡会因此掉线）'
+                job.error = '换了 ' + ((job.blankRetries ?? 0) + 1) + ' 个种子都是全黑图片：多半不是种子的问题，而是模型某一步的计算精度在溢出（常见于 fp16 的文本编码器或 U-Net）。请在 ComfyUI 启动参数里把文本编码器和 U-Net 精度设为 bf16、VAE 设为 fp32，然后重启 ComfyUI 再重画；不要在 bf16 模型已加载时切到 fp32 工作流（部分显卡会因此掉线）'
                 return
               }
               const signal = job.controller?.signal
@@ -5412,7 +5416,7 @@ export function injectDefinitions(text, definitions, config = {}, options = {}) 
     const bare = nsfw || bareScene || NOTHING_WORN.test(String(character.current?.outfit ?? '').trim())
     const recordedRaw = bare ? '' : resolveWearText(character, character.current?.outfit)
     const recorded = barefoot ? dropFootwear(recordedRaw) : recordedRaw
-    const picked = characterTags(character, { nsfw, back, full, mode: config.traitMode, barefoot, noOutfit: Boolean(recordedRaw) || bare })
+    const picked = characterTags(character, { nsfw, back, full, mode: config.traitMode, barefoot, noOutfit: Boolean(recordedRaw) || bare, tags: !natural })
     // options.provenance：诊断用，记录每段注入文字来自哪个人物的哪个字段、作用于正向还是整图负向。
     if (Array.isArray(options?.provenance)) for (const origin of picked.origins ?? []) options.provenance.push({ stage: 'definition-injection', characterId: String(character.id ?? ''), characterName: String(character.name ?? ''), matchedBy: keys.find(key => key && source.includes(key)) ?? '', appliedScope: origin.channel === 'negative' ? 'whole-image-negative' : 'whole-image-positive', ...origin })
     if (natural) {
