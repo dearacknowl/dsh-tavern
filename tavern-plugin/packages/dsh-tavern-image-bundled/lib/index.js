@@ -2073,6 +2073,29 @@ let worldbookCache = null
         ...timelineDefinitions,
         characters: (timelineDefinitions.characters ?? []).filter(character => usableOnCard(character, card)),
       }
+      // 规划调用了、但人物库补不上外貌的角色：插件只能写个名字，长相每张都会不一样。
+      // 以前这件事完全静默；现在收集起来，配图完成时提示用户。
+      const unmatchedCharacters = new Map()
+      const noteMacro = entry => {
+        if (!entry || (entry.result !== 'not-found' && entry.result !== 'ambiguous')) return
+        let parsed = null
+        try { parsed = JSON.parse('{' + String(entry.macro ?? '') + '}') } catch { return }
+        // 服装宏（upperBody: visible/hidden）找不到不算人物问题。
+        const parts = [parsed?.upperBody, parsed?.lowerBody, parsed?.body].map(v => String(v ?? '').toLowerCase())
+        if (!parsed?.angle && !parts.some(v => v === 'sfw' || v === 'nsfw')) return
+        const asked = String(entry.asked ?? '').trim()
+        if (asked && !unmatchedCharacters.has(asked.toLowerCase())) unmatchedCharacters.set(asked.toLowerCase(), { asked, ambiguous: entry.result === 'ambiguous' })
+      }
+      const characterWarnings = () => {
+        const norm = value => String(value ?? '').toLowerCase().replace(/[\s_\-.'"（）()]+/g, '')
+        return [...unmatchedCharacters.values()].map(({ asked, ambiguous }) => {
+          if (ambiguous) return '「' + asked + '」在人物库里对上了不止一个人，没有补外貌；把其中一位的英文触发名改得更具体'
+          const elsewhere = (timelineDefinitions.characters ?? []).find(c => c && c.enabled !== false && !usableOnCard(c, card)
+            && [c.id, c.name, ...splitTags(c.match)].some(alias => norm(alias) && norm(alias) === norm(asked)))
+          if (elsewhere) return '「' + (elsewhere.name || asked) + '」在人物库里绑定的是别的卡，这次没用上她的外貌；在人物库里给她勾上这张卡即可'
+          return '「' + asked + '」不在人物库里，长相每张会不一样；把她加进人物库能固定外貌'
+        }).slice(0, 4)
+      }
       // 世界书条目的 backends 里可以写 tags / natural / mixed，按默认工作流的写法只给规划看对应的规则。
       const plannerWorkflow = styleWorkflow()
       const plannerMode = resolvePromptMode(config, promptBackendContext(config, plannerWorkflow))
@@ -2181,13 +2204,19 @@ let worldbookCache = null
             const key = ('plan|' + (manualBatch ? 'manual:' + manualBatch + '|' : '') + (messageId ?? '') + '|' + image.mount + '|' + promptIdentity).slice(0, 3800)
             const imageIndex = ++traceImageIndex
             const macros = traceId ? [] : null
-            const expandOne = text => normalizePrompts(expandRosterCalls(text, scoped, config.traitMode, { style: rosterStyle(config, plannerWorkflow), onMacro: macros ? entry => macros.push(entry) : null }), scoped, { backend: config.imageBackend, style: rosterStyle(config, plannerWorkflow) })
-            const normalizedTag = expandOne(sceneText)
+            // 诊断里记录的「展开后、清理前」的场景提示词（以前引用了不存在的 expanded，开着诊断时每张图都提交失败）。
+            let expandedScene = ''
+            const expandOne = (text, keep = false) => {
+              const expanded = expandRosterCalls(text, scoped, config.traitMode, { style: rosterStyle(config, plannerWorkflow), onMacro: entry => { macros?.push(entry); noteMacro(entry) } })
+              if (keep) expandedScene = expanded
+              return normalizePrompts(expanded, scoped, { backend: config.imageBackend, style: rosterStyle(config, plannerWorkflow) })
+            }
+            const normalizedTag = expandOne(sceneText, true)
             const characters = planCharacters.map(item => ({ prompt: expandOne(item.prompt), centers: String(item.centers ?? '').trim(), uc: String(item.uc ?? '').trim() })).filter(item => item.prompt)
             if (traceId) {
               const T = diag.text
               diag.record(traceId, 'image-adopted', { mount: T(image.mount), size: image.size ?? null, prompts: T(image.prompts), adoptedAtStreamChars: streamed.length }, { imageIndex })
-              diag.record(traceId, 'macro-expansion', { macros: macros.map(m => ({ ...m, origins: (m.origins ?? []).map(o => ({ ...o, text: T(o.text) })) })), expanded: T(expanded), normalized: T(normalizedTag) }, { imageIndex })
+              diag.record(traceId, 'macro-expansion', { macros: macros.map(m => ({ ...m, origins: (m.origins ?? []).map(o => ({ ...o, text: T(o.text) })) })), expanded: T(expandedScene), normalized: T(normalizedTag) }, { imageIndex })
             }
             const job = await startJob({
               tag: normalizedTag,
@@ -2314,6 +2343,8 @@ let worldbookCache = null
 
       const characterSnapshot = characterUpdates ? visualSnapshot : null
       const plan = { messageId: String(messageId ?? ''), turn, at: Date.now(), plans, skipped, reason: parsed.reason, characterSnapshot, historyWarning, raw: plans.length ? '' : String(result.text || streamed).slice(0, 4000), card: card?.name ?? null }
+      const warnings = characterWarnings()
+      if (warnings.length) plan.characterWarnings = warnings
       if (failure) plan.error = String(failure?.message ?? failure)
       if (messageId) plansByMessage.set(String(messageId), plan)
         persistPlans()

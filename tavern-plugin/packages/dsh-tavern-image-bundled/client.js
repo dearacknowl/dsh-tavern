@@ -5890,7 +5890,7 @@ function versionsOf(jobId) {
             const runMessageDraw = createMessageDrawRunner(async context => {
               const r = await drawTurn(context)
               if (typeof showToast === 'function') {
-                if (r && r.ok && r.attached) showToast('已提交 ' + r.attached + ' 张，出图后自动插进正文')
+                if (r && r.ok && r.attached) showToast('已提交 ' + r.attached + ' 张，出图后自动插进正文' + (Array.isArray(r.warnings) && r.warnings.length ? '。' + r.warnings.join('；') : ''))
                 else if (r && r.ok && r.skipped) showToast('本轮自动跳过配图：' + (r.reason || '没有合适的画面'))
                 else showToast('生图没出画面：' + ((r && r.error) || '规划没有产出画面'))
               }
@@ -5910,7 +5910,7 @@ function versionsOf(jobId) {
               // 进度和结果由 Tavern 显示在这一轮正文里：成功不提示，跳过返回说明，失败抛错。
               const draw = createMessageDrawRunner(async context => {
                 const r = await drawTurn({ gameId: context.gameId, turn: context.turn })
-                if (r && r.ok && r.attached) return {}
+                if (r && r.ok && r.attached) return Array.isArray(r.warnings) && r.warnings.length ? { notice: '已配图。' + r.warnings.join('；') } : {}
                 if (r && r.ok && r.skipped) return { notice: '本轮跳过配图：' + (r.reason || '没有合适的画面') }
                 throw new Error('没出画面：' + ((r && r.error) || '规划没有产出画面'))
               })

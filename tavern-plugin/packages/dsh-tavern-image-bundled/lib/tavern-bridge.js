@@ -245,6 +245,7 @@ export function installTavernBridge({ tavern, attachments, engine, getConfig, lo
       const results = await Promise.all(pending.values())
       await assertCurrent(task)
       const result = { attached: results.reduce((sum, value) => sum + value, 0), total: plans.length }
+      if (Array.isArray(plan?.characterWarnings) && plan.characterWarnings.length) result.warnings = plan.characterWarnings.map(text => String(text).slice(0, 200))
       if (plan?.error) result.error = String(plan.error).slice(0, 500)
       else if (plan?.skipped) { result.skipped = true; result.reason = String(plan.reason ?? '').slice(0, 500) }
       else if (!plans.length && shouldGenerate) result.error = '规划没有产出画面'
